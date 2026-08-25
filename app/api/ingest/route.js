@@ -35,6 +35,12 @@ export async function POST(request) {
     async start(controller) {
       const send = (obj) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
       try {
+        const saved = await appGraph.getState({ configurable: { thread_id: threadId } });
+        if (saved?.values?.profile) {
+          send({ status: "ready", threadId, profile: saved.values.profile });
+          return;
+        }
+
         send({ status: "processing", threadId });
         let ready = false;
         const updates = await appGraph.stream(
