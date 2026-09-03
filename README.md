@@ -137,7 +137,10 @@ Pinecone is a cloud API, so no persistent disk is needed for vectors. The only l
 checkpoint file (`./data/checkpoints.sqlite`). For Vercel, swap `SqliteSaver` for a Postgres-backed
 checkpointer (`@langchain/langgraph-checkpoint-postgres`) and add a `POSTGRES_URL` env var.
 
-**Demo:** _add your deployed URL here and in the repository About section._
+**Demo:**:
+
+https://github.com/user-attachments/assets/93faafd4-ad63-4c3e-b3cc-94ab464250fa
+
 
 ---
 
