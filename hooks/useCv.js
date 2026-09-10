@@ -11,15 +11,9 @@ export function useCv() {
     if (!file || loading) return;
     setLoading(true);
 
-    let ready = null;
     try {
-      await api.ingestCv(file, sessionId, (delta) => {
-        if (delta.status === "ready") {
-          ready = { threadId: delta.threadId, profile: delta.profile };
-        }
-      });
-      if (ready) setCv(ready);
-      else message.error("Could not read this CV.");
+      const { threadId, profile } = await api.ingestCv(file, sessionId);
+      setCv({ threadId, profile });
     } catch (err) {
       console.error("Failed to process CV:", err);
       message.error(err.message || "Could not process this CV.");

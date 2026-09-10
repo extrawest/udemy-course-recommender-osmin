@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { App } from "antd";
 import * as api from "@/lib/api";
+import { getSessionId } from "@/lib/session";
 
 export function useChat(threadId) {
   const { message } = App.useApp();
@@ -13,7 +14,7 @@ export function useChat(threadId) {
 
     async function loadHistory() {
       try {
-        const data = await api.fetchHistory(threadId);
+        const data = await api.fetchHistory(threadId, getSessionId());
         if (active && data?.messages?.length) {
           setMessages(data.messages.map((m) => ({ ...m, id: crypto.randomUUID() })));
         }
@@ -39,7 +40,7 @@ export function useChat(threadId) {
     setLoading(true);
 
     try {
-      await api.recommend(threadId, text, (delta) => {
+      await api.recommend(threadId, getSessionId(), text, (delta) => {
         setMessages((prev) => {
           const next = [...prev];
           const last = { ...next[next.length - 1] };

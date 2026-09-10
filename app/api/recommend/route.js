@@ -1,20 +1,26 @@
 import { HumanMessage } from "@langchain/core/messages";
-import { appGraph } from "@/lib/graph/graph";
+import { appGraph, ready } from "@/lib/graph/graph";
+import { ownsThread } from "@/lib/threads";
 import { textOf } from "@/utils/messages";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(request) {
-  let threadId, message;
+  let threadId, message, sessionId;
   try {
-    ({ threadId, message } = await request.json());
+    ({ threadId, message, sessionId } = await request.json());
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  if (!threadId || !message) {
-    return Response.json({ error: "Missing threadId or message" }, { status: 400 });
+  if (!threadId || !message || !sessionId) {
+    return Response.json({ error: "Missing threadId, message or sessionId" }, { status: 400 });
   }
+  if (!ownsThread(sessionId, threadId)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  await ready();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

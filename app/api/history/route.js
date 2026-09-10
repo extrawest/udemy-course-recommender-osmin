@@ -1,13 +1,18 @@
-import { appGraph } from "@/lib/graph/graph";
+import { appGraph, ready } from "@/lib/graph/graph";
+import { ownsThread } from "@/lib/threads";
 import { textOf } from "@/utils/messages";
 
 export const runtime = "nodejs";
 
 export async function GET(request) {
-  const threadId = new URL(request.url).searchParams.get("threadId");
-  if (!threadId) return Response.json({ error: "Missing threadId" }, { status: 400 });
+  const params = new URL(request.url).searchParams;
+  const threadId = params.get("threadId");
+  const sessionId = params.get("sessionId");
+  if (!threadId || !sessionId) return Response.json({ error: "Missing threadId or sessionId" }, { status: 400 });
+  if (!ownsThread(sessionId, threadId)) return Response.json({ error: "Forbidden" }, { status: 403 });
 
   try {
+    await ready();
     const snapshot = await appGraph.getState({ configurable: { thread_id: threadId } });
     const values = snapshot?.values || {};
     const messages = (values.messages || [])
