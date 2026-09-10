@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
-import { appGraph } from "@/lib/graph/graph";
+import { HumanMessage } from "@langchain/core/messages";
+import { appGraph, ready } from "@/lib/graph/graph";
 import { fileKind } from "@/lib/cvExtract";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 export async function POST(request) {
   let file, sessionId;
@@ -20,6 +23,9 @@ export async function POST(request) {
   if (!sessionId) {
     return Response.json({ error: "Missing sessionId" }, { status: 400 });
   }
+  if (file.size > MAX_FILE_BYTES) {
+    return Response.json({ error: "File too large. Max 5 MB." }, { status: 400 });
+  }
 
   const kind = fileKind(file.type, file.name);
   if (!kind) {
@@ -30,39 +36,20 @@ export async function POST(request) {
   const cvId = createHash("sha1").update(base64).digest("hex").slice(0, 12);
   const threadId = `${sessionId}_${cvId}`;
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (obj) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
-      try {
-        const saved = await appGraph.getState({ configurable: { thread_id: threadId } });
-        if (saved?.values?.profile) {
-          send({ status: "ready", threadId, profile: saved.values.profile });
-          return;
-        }
+  try {
+    await ready();
 
-        send({ status: "processing", threadId });
-        let ready = false;
-        const updates = await appGraph.stream(
-          { mode: "ingest", fileKind: kind, mimeType: file.type, fileData: base64 },
-          { configurable: { thread_id: threadId }, streamMode: "updates" }
-        );
-        for await (const update of updates) {
-          const profile = update.summarize?.profile;
-          if (profile) {
-            ready = true;
-            send({ status: "ready", threadId, profile });
-          }
-        }
-        if (!ready) send({ error: "Could not read any text from this CV." });
-      } catch (err) {
-        console.error("CV ingest failed:", err);
-        send({ error: err.message });
-      } finally {
-        controller.close();
-      }
-    },
-  });
+    const saved = await appGraph.getState({ configurable: { thread_id: threadId } });
+    if (saved?.values?.profile) return Response.json({ threadId, profile: saved.values.profile });
 
-  return new Response(stream, { headers: { "Content-Type": "application/x-ndjson" } });
+    const result = await appGraph.invoke(
+      { mode: "ingest", messages: [new HumanMessage("Please review my uploaded CV.")] },
+      { configurable: { thread_id: threadId, fileData: base64, mimeType: file.type, fileKind: kind } }
+    );
+    if (result?.profile) return Response.json({ threadId, profile: result.profile });
+    return Response.json({ error: "Could not read any text from this CV." }, { status: 422 });
+  } catch (err) {
+    console.error("CV ingest failed:", err);
+    return Response.json({ error: "Could not process this CV." }, { status: 500 });
+  }
 }
